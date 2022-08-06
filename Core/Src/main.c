@@ -181,6 +181,17 @@ int main(void)
   roundNumber = 0;
   filteredAngle = 0;
   fullAngle = 0;
+  recSpeedSetpoint = 1500;
+
+  // Initially set TIM2 to 1kHz and Calculate MIN MAX of ARR
+  LL_TIM_SetAutoReload(TIM2, 4000);
+  LL_TIM_EnableARRPreload(TIM2);
+
+
+  ARRmin = (uint32_t)(100 * CAL_stepSize) * HAL_RCC_GetSysClockFreq() / 6 / LL_TIM_GetPrescaler(TIM2) / speedMAX / 100;
+  ARRmax = 8000;	// min frequency: 500Hz
+  effort2freqCoef = (ARRmin - ARRmax) / (pidEffort->outputMAX - pidEffort->outputMIN);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -191,14 +202,36 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  // 5k Interrupt to read encoder and calculate speed
+	  if(counterTIM1_SLOW > 1999)
+	  {
+		  counterTIM1_SLOW = 0;
+
+	  }
+
 	  if(counterTIM1_5k > 3)
 	  {
 		  counterTIM1_5k = 0;
 
+		  filteredAngle = encoderFilter(5);
+
+		  if(filteredAngle - filteredAngle_k_1 > 8192)	roundNumber --;
+		  if(filteredAngle - filteredAngle_k_1 < -8192)	roundNumber ++;
+
+		  fullAngle = 16384 * roundNumber + filteredAngle;
+
+		  rotorSpeed = fullAngle - fullAngle_k_1;
+		  rotorSpeed_k_1 = fullAngle_k_1 - fullAngle_k_2;
+
+		  // Update history value
+		  filteredAngle_k_1 = filteredAngle;
+
+		  fullAngle_k_2 = fullAngle_k_1;
+		  fullAngle_k_1 = fullAngle;
+
 
 	  }
 
-	  // 1k Interrupt to call speed regulation algorithm
+	  // 1k Interrupt to process UART communications
 	  if(counterTIM1_1k > 19)
 	  {
 		  counterTIM1_1k = 0;
@@ -210,19 +243,65 @@ int main(void)
 		  if(recStepSizeIdx == 2) CAL_stepSize = 10.24f;
 		  if(recStepSizeIdx == 3) CAL_stepSize = 5.12f;
 		  if(recStepSizeIdx == 4) CAL_stepSize = 2.56f;
+		  if(recStepSizeIdx == 5) CAL_stepSize = 1.28f;
+
+		  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_12);
+		  while(!LL_GPIO_IsOutputPinSet(GPIOB, LL_GPIO_PIN_12));
+
+		  while(!LL_USART_IsActiveFlag_TXE(USART3));
+		  LL_USART_TransmitData8(USART3, 0x07);
+		  while(!LL_USART_IsActiveFlag_TXE(USART3));
+		  LL_USART_TransmitData8(USART3, 0x06);
+		  while(!LL_USART_IsActiveFlag_TXE(USART3));
+		  LL_USART_TransmitData8(USART3, 0x06);
+
+		  // Data 1
+		  for(int8_t i=3; i>=0; i--){
+			  while(!LL_USART_IsActiveFlag_TXE(USART3));
+			  LL_USART_TransmitData8(USART3, (fullAngle >> (i * 8)) & 0xFF);
+		  }
+
+		  // Data 2
+		  for(int8_t j=3; j>-1; --j){
+			  while(!LL_USART_IsActiveFlag_TXE(USART3));
+			  LL_USART_TransmitData8(USART3, (commandOut >> (j * 8)) & 0xFF);
+		  }
+
+		  // Data 3
+		  for(int8_t k=3; k>-1; --k){
+			  while(!LL_USART_IsActiveFlag_TXE(USART3));
+			  LL_USART_TransmitData8(USART3, (errorOut >> (k * 8)) & 0xFF);
+		  }
+
+		  while(!LL_USART_IsActiveFlag_TXE(USART3));
+		  // Extra byte NEEDED to protect data integrity
+		  LL_USART_TransmitData8(USART3, 0x09);
+		  while(!LL_USART_IsActiveFlag_TXE(USART3));
+
+		  // Pull DOWN to wait for receiving
+		  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_12);
+
+
+		  // Calculate ARR value for TIM2
+		  // stepSize*fclk/(6*prescaler*RPM)
+
+		  // Set the ARR limit value corresponding to RPM target!
+		  // setpointARR value will only be updated when recSpeedSetpoint changes
+		  setpointARR = (uint32_t)(100 * CAL_stepSize) * HAL_RCC_GetSysClockFreq() / 6 / LL_TIM_GetPrescaler(TIM2) / recSpeedSetpoint / 100;
+		  if(setpointARR < ARRmin) setpointARR = ARRmin;
+		  if(setpointARR > ARRmax) setpointARR = ARRmax;
+
 	  }
 
-	  // 10kHz
-	  if(counterTIM2_5k > 10)
+	  /***** TIM2 is a variable period timer NOW !! ********\
+	   * It change its own ARR value every interrupt, dynamically varying
+	   * interrupt's frequency
+	   *****************************************************/
+	  // The same trigger ratio with TIM2 IRQ
+	  if(counterTIM2_10k > 0)
 	  {
-		  counterTIM2_5k = 0;
+		  counterTIM2_10k = 0;
 
-		  filteredAngle = encoderFilter(5);
-
-		  if(filteredAngle - filteredAngle_k_1 > 8192)	roundNumber --;
-		  if(filteredAngle - filteredAngle_k_1 < -8192)	roundNumber ++;
-
-		  fullAngle = 16384 * roundNumber + filteredAngle;
 
 		  if(parameterTuningEnable != 0){
 			  commandAngle = recCommandAngle;
@@ -235,6 +314,32 @@ int main(void)
 
 
 		  commandOut = controlPID(&pidEffort, commandAngle, fullAngle);
+
+		  /*********** Dynamically change freqency (speed) ***********/
+		  // Determine deltaARR between two consecutive steps
+		  deltaARR = (commandOut - commandOut_k_1) * effort2freqCoef;
+		  // Check if the variation of ARR is in a reasonable range
+		  if(deltaARR >= 0){
+			  if(deltaARR > deltaPositiveMax) deltaARR = deltaPositiveMax;
+		  }
+		  if(deltaARR < 0){
+			  if(deltaARR < deltaNegativeMax) deltaARR = deltaNegativeMax;
+		  }
+
+		  // Use deltaARR and current ARR to calculate new ARR value in step k (current step)
+		  stepARR = LL_TIM_GetAutoReload(TIM2) + deltaARR;
+
+		  // Low pass filter to smooth the variation of ARR
+		  outputARR = (lowpassFilterCoef * stepARR + (1000 - lowpassFilterCoef) * LL_TIM_GetAutoReload(TIM2)) / 1000;
+
+		  // MIN MAX limitation
+		  if(outputARR > ARRmax)  outputARR = ARRmax;
+		  if(outputARR < ARRmin)  outputARR = ARRmin;
+
+		  // Dynamically change frequency for the next interrupt
+		  LL_TIM_SetAutoReload(TIM2, outputARR);
+		  LL_TIM_EnableARRPreload(TIM2);
+
 
 //		  commandOut = 0.01 * (commandAngle - fullAngle);
 //		  stepNumber = 0.1 * (commandAngle - fullAngle);
@@ -280,10 +385,8 @@ int main(void)
 		  // Unload ALL Control Effect, Let the Motor Free Running
 		  if(CAL_releaseMotor != 0) moveMotor(0, 0);
 
+		  commandOut_k_1 = commandOut;
 
-		  // Update history value
-		  filteredAngle_k_1 = filteredAngle;
-		  fullAngle_k_1 = fullAngle;
 	  }
 
 	  // 2000 for 0.1 sec interrupt
@@ -293,50 +396,14 @@ int main(void)
 //		  testAngle = readAngle();
 		  printf("======");
 		  printf("Current ARR value is: %d\n", testARR);
-		  if(testARR < 20000) testARR += 200;
-		  if(testARR >= 20000) testARR = 100;
+
 //		  LL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 //		  LL_GPIO_TogglePin(LED_PB0_GPIO_Port, LED_PB0_Pin);
 //		  LL_GPIO_TogglePin(LED_PB1_GPIO_Port, LED_PB1_Pin);
 
 //		  LL_TIM_EnableARRPreload(TIM2);
 
-		  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_12);
-		  while(!LL_GPIO_IsOutputPinSet(GPIOB, LL_GPIO_PIN_12));
 
-		  while(!LL_USART_IsActiveFlag_TXE(USART3));
-		  LL_USART_TransmitData8(USART3, 0x07);
-		  //uDelay(100);
-		  while(!LL_USART_IsActiveFlag_TXE(USART3));
-		  LL_USART_TransmitData8(USART3, 0x06);
-		  while(!LL_USART_IsActiveFlag_TXE(USART3));
-		  LL_USART_TransmitData8(USART3, 0x06);
-
-		  // Data 1
-		  for(int8_t i=3; i>=0; i--){
-			  while(!LL_USART_IsActiveFlag_TXE(USART3));
-			  LL_USART_TransmitData8(USART3, (fullAngle >> (i * 8)) & 0xFF);
-		  }
-
-		  // Data 2
-		  for(int8_t j=3; j>-1; --j){
-			  while(!LL_USART_IsActiveFlag_TXE(USART3));
-			  LL_USART_TransmitData8(USART3, (commandOut >> (j * 8)) & 0xFF);
-		  }
-
-		  // Data 3
-		  for(int8_t k=3; k>-1; --k){
-			  while(!LL_USART_IsActiveFlag_TXE(USART3));
-			  LL_USART_TransmitData8(USART3, (errorOut >> (k * 8)) & 0xFF);
-		  }
-
-		  while(!LL_USART_IsActiveFlag_TXE(USART3));
-		  // Extra byte NEEDED to protect data integrity
-		  LL_USART_TransmitData8(USART3, 0x09);
-		  while(!LL_USART_IsActiveFlag_TXE(USART3));
-
-		  // Pull DOWN to wait for receiving
-		  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_12);
 	  }
 
 

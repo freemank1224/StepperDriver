@@ -12,7 +12,7 @@
 #include "PID.h"
 
 // To define a fixed length array, we have to do this !!
-#define nBytes 17
+#define nBytes 19
 
 extern int16_t dutyLED;
 extern int16_t dutyCmd;
@@ -30,9 +30,10 @@ extern int32_t commandOut;
 extern int32_t errorOut;
 extern uint16_t flashAngle;
 extern uint16_t amplitude;
+extern uint16_t counterTIM1_SLOW;
 extern uint16_t counterTIM1_5k;
 extern uint16_t counterTIM1_1k;
-extern uint16_t counterTIM2_20k;
+extern uint16_t counterTIM2_10k;
 extern uint16_t counterTIM2_1k;
 extern uint16_t counterTIM2_5k;
 extern uint16_t counterTIM2_speed;
@@ -62,6 +63,7 @@ extern int32_t recFilterCoef;
 extern int32_t recCommandAngle;
 extern uint8_t recFilterEnableFlag;
 extern uint8_t recStepSizeIdx;
+extern uint32_t recSpeedSetpoint;
 
 // USART Communication
 extern uint8_t inData[];
@@ -74,10 +76,20 @@ extern uint8_t CAL_dirCmd;
 extern uint8_t CAL_calibrateEncoder;
 extern float CAL_stepSize;
 
+// For speed regulation
+extern uint32_t setpointARR;
+extern uint32_t outputARR;
+extern uint16_t lowpassFilterCoef;
+extern uint32_t ARRmin;
+extern uint32_t ARRmax;
+
 /*********** CONSTANT EXTERN *************/
 
 extern const int16_t ppsConst;
-extern const int16_t sinLookupTable[];
+extern const uint32_t frequencyMIN;	// unit: ARR value 4000 for 1kHz
+extern const uint32_t frequencyMAX;
+extern const uint32_t speedSetpoint;	// RPM
+extern const uint32_t speedMAX;			// RPM, NO need to set MIN speed since it can be 0 when stopped!
 
 
 

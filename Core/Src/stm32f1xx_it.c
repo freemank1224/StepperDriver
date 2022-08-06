@@ -208,6 +208,7 @@ void TIM1_UP_IRQHandler(void)
 	LL_TIM_ClearFlag_UPDATE(TIM1);
 
 	// TIM1 is set to 20kHz
+	counterTIM1_SLOW ++；
 	counterTIM1_5k ++;
 	counterTIM1_1k ++;
 
@@ -233,7 +234,7 @@ void TIM2_IRQHandler(void)
 
 
 
-  counterTIM2_20k ++;
+  counterTIM2_10k ++;
   counterTIM2_1k ++;
   counterTIM2_5k ++;
 

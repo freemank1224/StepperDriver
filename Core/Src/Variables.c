@@ -25,9 +25,10 @@ int32_t commandOut;
 int32_t errorOut;
 uint16_t flashAngle;
 uint16_t amplitude;
+uint16_t counterTIM1_SLOW;
 uint16_t counterTIM1_5k;
 uint16_t counterTIM1_1k;
-uint16_t counterTIM2_20k;
+uint16_t counterTIM2_10k;
 uint16_t counterTIM2_1k;
 uint16_t counterTIM2_5k;
 uint16_t counterTIM2_speed;
@@ -55,6 +56,7 @@ int32_t recCommandAngle;
 int32_t recFilterCoef;
 uint8_t recFilterEnableFlag;
 uint8_t recStepSizeIdx;
+uint32_t recSpeedSetpoint;
 
 
 // USART Communication
@@ -62,8 +64,14 @@ uint8_t inData[nBytes];
 uint8_t idx = 0;
 
 
-
-
+// For speed regulation
+uint32_t setpointARR = 4000;
+uint32_t deltaARR = 50;
+uint32_t outputARR = 4000;
+uint16_t lowpassFilterCoef = 500;
+uint32_t ARRmin;
+uint32_t ARRmax;
+int32_t effort2freqCoef;
 
 uint8_t CAL_closedLoop = 1;
 uint8_t CAL_releaseMotor = 0;
@@ -77,6 +85,10 @@ PID_TypeDef pidPosition, pidEffort;
 /****************  CONSTANTS  *******************/
 
 const int16_t ppsConst;
+const uint32_t frequencyMIN = 4000;	// unit: ARR value 4000 for 1kHz
+const uint32_t frequencyMAX = 4000;
+const uint32_t speedSetpoint = 3000;	// RPM
+const uint32_t speedMAX = 6000;			// RPM, NO need to set MIN speed since it can be 0 when stopped!
 
 const int16_t sinLookupTable[] =
 {
