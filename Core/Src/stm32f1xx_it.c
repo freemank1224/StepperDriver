@@ -208,7 +208,7 @@ void TIM1_UP_IRQHandler(void)
 	LL_TIM_ClearFlag_UPDATE(TIM1);
 
 	// TIM1 is set to 20kHz
-	counterTIM1_SLOW ++；
+	counterTIM1_SLOW ++;
 	counterTIM1_5k ++;
 	counterTIM1_1k ++;
 
@@ -298,6 +298,9 @@ void USART3_IRQHandler(void)
     		recCommandAngle = (((int32_t)inData[15]) << 8) + inData[16];
 //    		recCommandAngle = (int32_t)recCommandAngle << 16;
 
+    		// New message added: speed setpoint in RPM unit
+    		recSpeedSetpoint = (((int32_t)inData[17]) << 8) + inData[18];
+
     		idx = 0;
     		recStatus = 0;	// Receive Correct!
     	}else{
@@ -326,4 +329,3 @@ void USART3_IRQHandler(void)
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
-

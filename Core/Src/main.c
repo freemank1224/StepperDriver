@@ -190,7 +190,7 @@ int main(void)
 
   ARRmin = (uint32_t)(100 * CAL_stepSize) * HAL_RCC_GetSysClockFreq() / 6 / LL_TIM_GetPrescaler(TIM2) / speedMAX / 100;
   ARRmax = 8000;	// min frequency: 500Hz
-  effort2freqCoef = (ARRmin - ARRmax) / (pidEffort->outputMAX - pidEffort->outputMIN);
+  effort2freqCoef = (ARRmin - ARRmax) / (pidEffort.outputMAX - pidEffort.outputMIN);
 
   /* USER CODE END 2 */
 
@@ -218,9 +218,6 @@ int main(void)
 		  if(filteredAngle - filteredAngle_k_1 < -8192)	roundNumber ++;
 
 		  fullAngle = 16384 * roundNumber + filteredAngle;
-
-		  rotorSpeed = fullAngle - fullAngle_k_1;
-		  rotorSpeed_k_1 = fullAngle_k_1 - fullAngle_k_2;
 
 		  // Update history value
 		  filteredAngle_k_1 = filteredAngle;
@@ -448,6 +445,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -498,4 +496,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-

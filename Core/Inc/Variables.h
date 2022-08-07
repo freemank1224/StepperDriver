@@ -24,9 +24,11 @@ extern uint16_t testAngle;
 extern int32_t filteredAngle;
 extern int32_t fullAngle;
 extern int32_t fullAngle_k_1;
+extern int32_t fullAngle_k_2;
 extern int32_t commandAngle;
 extern int32_t filteredAngle_k_1;
 extern int32_t commandOut;
+extern int32_t commandOut_k_1;
 extern int32_t errorOut;
 extern uint16_t flashAngle;
 extern uint16_t amplitude;
@@ -78,10 +80,16 @@ extern float CAL_stepSize;
 
 // For speed regulation
 extern uint32_t setpointARR;
+extern int32_t deltaARR;
+extern int32_t stepARR;
 extern uint32_t outputARR;
+extern int32_t deltaARRmax;
+extern int32_t deltaPositiveMax;
+extern int32_t deltaNegativeMax;
 extern uint16_t lowpassFilterCoef;
 extern uint32_t ARRmin;
 extern uint32_t ARRmax;
+extern int32_t effort2freqCoef;
 
 /*********** CONSTANT EXTERN *************/
 
@@ -90,7 +98,7 @@ extern const uint32_t frequencyMIN;	// unit: ARR value 4000 for 1kHz
 extern const uint32_t frequencyMAX;
 extern const uint32_t speedSetpoint;	// RPM
 extern const uint32_t speedMAX;			// RPM, NO need to set MIN speed since it can be 0 when stopped!
-
+extern const int16_t sinLookupTable[];
 
 
 #endif /* SRC_VARIABLES_H_ */

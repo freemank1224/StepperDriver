@@ -19,9 +19,11 @@ uint16_t testAngle;
 int32_t filteredAngle;
 int32_t fullAngle;
 int32_t fullAngle_k_1;
+int32_t fullAngle_k_2;
 int32_t commandAngle = 0;
 int32_t filteredAngle_k_1;
 int32_t commandOut;
+int32_t commandOut_k_1;
 int32_t errorOut;
 uint16_t flashAngle;
 uint16_t amplitude;
@@ -66,8 +68,12 @@ uint8_t idx = 0;
 
 // For speed regulation
 uint32_t setpointARR = 4000;
-uint32_t deltaARR = 50;
+int32_t deltaARR = -25;
+int32_t stepARR = 0;
 uint32_t outputARR = 4000;
+int32_t deltaARRmax = -50;
+int32_t deltaPositiveMax = 80;
+int32_t deltaNegativeMax = -80;
 uint16_t lowpassFilterCoef = 500;
 uint32_t ARRmin;
 uint32_t ARRmax;
