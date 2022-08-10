@@ -232,6 +232,7 @@ void TIM2_IRQHandler(void)
 
   LL_TIM_ClearFlag_UPDATE(TIM2);
 
+  LL_GPIO_TogglePin(LED_PB0_GPIO_Port, LED_PB0_Pin);
 
 
   counterTIM2_10k ++;

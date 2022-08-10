@@ -31,6 +31,7 @@
 #include "MotorOperation.h"
 #include "UsDelay.h"
 #include <stdio.h>
+#include <math.h>
 
 /* USER CODE END Includes */
 
@@ -82,6 +83,8 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
   uint16_t cycleNumber = 0;
+  uint32_t fclk, fPrescaler;
+
 
 
   /* USER CODE END 1 */
@@ -166,10 +169,12 @@ int main(void)
   if(parameterTuningEnable != 0){
 	  initPID(&pidPosition, recKp, recKi, recKd, recFilterEnableFlag, recFilterCoef, 10, 80);
 	  initPID(&pidEffort, recKp, recKi, recKd, recFilterEnableFlag, recFilterCoef, -50, 50);
+	  initPID(&pidSpeed, recKp, recKi, recKd, recFilterEnableFlag, recFilterCoef, 0, 80);
   }else{
 	  // For Manual Tuning in Cube IDE
 	  initPID(&pidPosition, 20, 0, 0, 0, 0, 10, 80);
 	  initPID(&pidEffort, 1, 80, 0, 0, 0, -80, 80);
+	  initPID(&pidSpeed, 1, 100, 0, 0, 0, -80, 80);
   }
 
 
@@ -181,16 +186,20 @@ int main(void)
   roundNumber = 0;
   filteredAngle = 0;
   fullAngle = 0;
-  recSpeedSetpoint = 1500;
+  recSpeedSetpoint = 1200;
 
-  // Initially set TIM2 to 1kHz and Calculate MIN MAX of ARR
-  LL_TIM_SetAutoReload(TIM2, 4000);
+
+  fclk = HAL_RCC_GetSysClockFreq();
+  fPrescaler = LL_TIM_GetPrescaler(TIM2);
+
+  // Initially set TIM2 and Calculate MIN/MAX of ARR
+  LL_TIM_SetAutoReload(TIM2, 2000);
   LL_TIM_EnableARRPreload(TIM2);
 
-
-  ARRmin = (uint32_t)(100 * CAL_stepSize) * HAL_RCC_GetSysClockFreq() / 6 / LL_TIM_GetPrescaler(TIM2) / speedMAX / 100;
-  ARRmax = 8000;	// min frequency: 500Hz
-  effort2freqCoef = (ARRmin - ARRmax) / (pidEffort.outputMAX - pidEffort.outputMIN);
+  uint32_t tempARR = (uint32_t)(fclk / fPrescaler / 6 / speedMAX);
+  ARRmin = CAL_stepSize * tempARR;
+  ARRmax = 4000;	// min frequency: 1000Hz
+  effort2freqCoef = ((int32_t)ARRmin - (int32_t)ARRmax) / (pidEffort.outputMAX - pidEffort.outputMIN);
 
   /* USER CODE END 2 */
 
@@ -201,13 +210,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  // 5k Interrupt to read encoder and calculate speed
-	  if(counterTIM1_SLOW > 1999)
-	  {
-		  counterTIM1_SLOW = 0;
-
-	  }
-
+	  /******************* 5kHz **********************\
+	  ********* Position, Speed, Acceleration *********
+	  *********  Update in 5kHz frequence ************/
+	  // 5kHz interrupt  0.2ms
 	  if(counterTIM1_5k > 3)
 	  {
 		  counterTIM1_5k = 0;
@@ -219,13 +225,56 @@ int main(void)
 
 		  fullAngle = 16384 * roundNumber + filteredAngle;
 
+		  angularSpeed = (5000 * 60 / 16384) * (fullAngle - fullAngle_k_1);	// Angular Speed in RPM unit
+
+		  angularAcceleration = (angularSpeed - angularSpeed_k_1);
+
+		  if(parameterTuningEnable != 0){
+			  commandAngle = recCommandAngle;
+			  commandSpeed = recCommandSpeed;
+		  }else{
+			  // Manual Control
+			  commandAngle = commandAngle;
+			  commandSpeed = commandSpeed;
+		  }
+
+		  errorAngleOut = commandAngle - fullAngle;
+		  errorSpeedOut = commandSpeed - angularSpeed;
+
+		  /********** Speed PID control ***********/
+		  deltaSpeed = controlPID(&pidSpeed, commandAngle, fullAngle);
+		  if(deltaSpeed > speedMax) deltaSpeed = speedMax;
+		  if(deltaSpeed < speedMin) deltaSpeed = speedMin;
+
+		  targetSpeed = deltaSpeed + angularSpeed;
+		  // Saturation to commandSpeed
+		  if(commandSpeed > 0){
+			  if(targetSpeed > commandSpeed) targetSpeed = commandSpeed;
+		  }else{
+			  if(targetSpeed < commandSpeed) targetSpeed = commandSpeed;
+		  }
+
+		  /********** Position PID control ***********/
+		  // Set the ARR limit value corresponding to RPM target!
+		  // setpointARR value will only be updated when recSpeedSetpoint changes
+		  // !!! Remember ARR is negative related with Period, CHECK IT!!!
+		  deltaARR = controlPID(&pidPosition, targetSpeed, angularSpeed);
+		  if(deltaARR < deltaARRmin) deltaARR = deltaARRmin;
+		  if(deltaARR > deltaARRmax) deltaARR = deltaARRmax;
+		  outputARR = (lowpassFilterCoef * setpointARR + (1000 - lowpassFilterCoef) *  LL_TIM_GetAutoReload(TIM2)) / 1000;
+		  if(outputARR < ARRmin) outputARR = ARRmin;
+		  if(outputARR > ARRmax) outputARR = ARRmax;
+		  // Dynamically SET frequency for the TIM2
+		  LL_TIM_SetAutoReload(TIM2, outputARR);
+		  LL_TIM_EnableARRPreload(TIM2);
+
+
 		  // Update history value
 		  filteredAngle_k_1 = filteredAngle;
 
 		  fullAngle_k_2 = fullAngle_k_1;
 		  fullAngle_k_1 = fullAngle;
-
-
+		  angularSpeed_k_1 = angularSpeed;
 	  }
 
 	  // 1k Interrupt to process UART communications
@@ -233,14 +282,26 @@ int main(void)
 	  {
 		  counterTIM1_1k = 0;
 
-//		  flashAngle = * (volatile uint16_t*)((readAngle()>>2)*2 + 0x08008000);
+		  cycleNumber ++;
 
-		  if(recStepSizeIdx == 0) CAL_stepSize = 81.92f;
-		  if(recStepSizeIdx == 1) CAL_stepSize = 40.96f;
-		  if(recStepSizeIdx == 2) CAL_stepSize = 10.24f;
-		  if(recStepSizeIdx == 3) CAL_stepSize = 5.12f;
-		  if(recStepSizeIdx == 4) CAL_stepSize = 2.56f;
-		  if(recStepSizeIdx == 5) CAL_stepSize = 1.28f;
+		  if(cycleNumber > 49999){
+
+			  commandAngle = 500000;
+
+			  cycleNumber = 0;
+
+	//			  stepNumber = 0;
+		  }
+
+//		  flashAngle = * (volatile uint16_t*)((readAngle()>>2)*2 + 0x08008000);
+		  if(parameterTuningEnable != 0){
+			  if(recStepSizeIdx == 0) CAL_stepSize = 81.92f;
+			  if(recStepSizeIdx == 1) CAL_stepSize = 40.96f;
+			  if(recStepSizeIdx == 2) CAL_stepSize = 10.24f;
+			  if(recStepSizeIdx == 3) CAL_stepSize = 5.12f;
+			  if(recStepSizeIdx == 4) CAL_stepSize = 2.56f;
+			  if(recStepSizeIdx == 5) CAL_stepSize = 1.28f;
+		  }
 
 		  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_12);
 		  while(!LL_GPIO_IsOutputPinSet(GPIOB, LL_GPIO_PIN_12));
@@ -267,7 +328,31 @@ int main(void)
 		  // Data 3
 		  for(int8_t k=3; k>-1; --k){
 			  while(!LL_USART_IsActiveFlag_TXE(USART3));
-			  LL_USART_TransmitData8(USART3, (errorOut >> (k * 8)) & 0xFF);
+			  LL_USART_TransmitData8(USART3, (errorAngleOut >> (k * 8)) & 0xFF);
+		  }
+
+		  // Data 4
+		  for(int8_t k=3; k>-1; --k){
+			  while(!LL_USART_IsActiveFlag_TXE(USART3));
+			  LL_USART_TransmitData8(USART3, (errorSpeedOut >> (k * 8)) & 0xFF);
+		  }
+
+		  // Data 5
+		  for(int8_t k=3; k>-1; --k){
+			  while(!LL_USART_IsActiveFlag_TXE(USART3));
+			  LL_USART_TransmitData8(USART3, (outputARR >> (k * 8)) & 0xFF);
+		  }
+
+		  // Data 6
+		  for(int8_t k=3; k>-1; --k){
+			  while(!LL_USART_IsActiveFlag_TXE(USART3));
+			  LL_USART_TransmitData8(USART3, (readARR >> (k * 8)) & 0xFF);
+		  }
+
+		  // Data 7
+		  for(int8_t k=3; k>-1; --k){
+			  while(!LL_USART_IsActiveFlag_TXE(USART3));
+			  LL_USART_TransmitData8(USART3, (deltaARR >> (k * 8)) & 0xFF);
 		  }
 
 		  while(!LL_USART_IsActiveFlag_TXE(USART3));
@@ -279,16 +364,12 @@ int main(void)
 		  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_12);
 
 
-		  // Calculate ARR value for TIM2
-		  // stepSize*fclk/(6*prescaler*RPM)
-
-		  // Set the ARR limit value corresponding to RPM target!
-		  // setpointARR value will only be updated when recSpeedSetpoint changes
-		  setpointARR = (uint32_t)(100 * CAL_stepSize) * HAL_RCC_GetSysClockFreq() / 6 / LL_TIM_GetPrescaler(TIM2) / recSpeedSetpoint / 100;
-		  if(setpointARR < ARRmin) setpointARR = ARRmin;
-		  if(setpointARR > ARRmax) setpointARR = ARRmax;
 
 	  }
+
+	  /******************** SEPERATE LINE **************************\
+	  *************** TIM1 UP ***************************************
+	  \******************************* TIM2 DOWN *******************/
 
 	  /***** TIM2 is a variable period timer NOW !! ********\
 	   * It change its own ARR value every interrupt, dynamically varying
@@ -307,75 +388,45 @@ int main(void)
 			  commandAngle = commandAngle;
 		  }
 
-		  errorOut = commandAngle - fullAngle;
-
+		  errorAngleOut = commandAngle - fullAngle;
 
 		  commandOut = controlPID(&pidEffort, commandAngle, fullAngle);
 
-		  /*********** Dynamically change freqency (speed) ***********/
+
 		  // Determine deltaARR between two consecutive steps
-		  deltaARR = (commandOut - commandOut_k_1) * effort2freqCoef;
-		  // Check if the variation of ARR is in a reasonable range
-		  if(deltaARR >= 0){
-			  if(deltaARR > deltaPositiveMax) deltaARR = deltaPositiveMax;
-		  }
-		  if(deltaARR < 0){
-			  if(deltaARR < deltaNegativeMax) deltaARR = deltaNegativeMax;
-		  }
-
-		  // Use deltaARR and current ARR to calculate new ARR value in step k (current step)
-		  stepARR = LL_TIM_GetAutoReload(TIM2) + deltaARR;
-
-		  // Low pass filter to smooth the variation of ARR
-		  outputARR = (lowpassFilterCoef * stepARR + (1000 - lowpassFilterCoef) * LL_TIM_GetAutoReload(TIM2)) / 1000;
-
-		  // MIN MAX limitation
-		  if(outputARR > ARRmax)  outputARR = ARRmax;
-		  if(outputARR < ARRmin)  outputARR = ARRmin;
-
-		  // Dynamically change frequency for the next interrupt
-		  LL_TIM_SetAutoReload(TIM2, outputARR);
-		  LL_TIM_EnableARRPreload(TIM2);
+		  // This form suppose the change rate of Effort is slow and continuously, BUT NOT suit for sudden change
 
 
-//		  commandOut = 0.01 * (commandAngle - fullAngle);
-//		  stepNumber = 0.1 * (commandAngle - fullAngle);
+
+		  commandAngle_k_1 = commandAngle;
 
 
-		  cycleNumber ++;
-
-		  if(cycleNumber > 49999){
-
-			  commandAngle -= 50000;
-
-			  cycleNumber = 0;
-
-//			  stepNumber = 0;
-		  }
 
 		  if(CAL_releaseMotor == 0){
 
 			  if(commandOut >= 0){
 				  stepNumber --;
-//				  if(commandOut < 2) commandOut = 2;
-	//			  if(commandOut > 50) commandOut = 50;
+				  if(commandOut < 5) commandOut = 5;
+//				  if(commandOut > 50) commandOut = 50;
 				  if(parameterTuningEnable != 0){
 					  moveMotor(CAL_stepSize * stepNumber, commandOut);
 				  }else{
-					  moveMotor(2.56f * stepNumber, commandOut);
+					  moveMotor(5.12f * stepNumber, commandOut);
 				  }
-				  LL_GPIO_SetOutputPin(LED1_GPIO_Port, LED1_Pin);
+//				  LL_GPIO_SetOutputPin(LED1_GPIO_Port, LED1_Pin);
+//				  LL_GPIO_SetOutputPin(LED_PB0_GPIO_Port, LED_PB0_Pin);	//For Compass F103 Board
 			  }
 			  if(commandOut < 0){
 				  stepNumber ++;
-//				  if(commandOut > -2) commandOut = -2;
-	//			  if(commandOut < -50) commandOut = -50;
+				  if(commandOut > -5) commandOut = -5;
+//				  if(commandOut < -50) commandOut = -50;
 				  if(parameterTuningEnable != 0){
 					  moveMotor(CAL_stepSize * stepNumber, -commandOut);
 				  }else{
-					  moveMotor(2.56f * stepNumber, -commandOut);
+					  moveMotor(5.12f * stepNumber, -commandOut);
 				  }
-				  LL_GPIO_ResetOutputPin(LED1_GPIO_Port, LED1_Pin);
+//				  LL_GPIO_ResetOutputPin(LED1_GPIO_Port, LED1_Pin);
+//				  LL_GPIO_SetOutputPin(LED_PB0_GPIO_Port, LED_PB0_Pin);		//For Compass F103 Board
 			  }
 		  }
 
@@ -387,19 +438,11 @@ int main(void)
 	  }
 
 	  // 2000 for 0.1 sec interrupt
-	  if(counterTIM2_1k > 10000)
+	  if(counterTIM2_1k > 10)
 	  {
 		  counterTIM2_1k = 0;
-//		  testAngle = readAngle();
-		  printf("======");
-		  printf("Current ARR value is: %d\n", testARR);
 
-//		  LL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-//		  LL_GPIO_TogglePin(LED_PB0_GPIO_Port, LED_PB0_Pin);
-//		  LL_GPIO_TogglePin(LED_PB1_GPIO_Port, LED_PB1_Pin);
-
-//		  LL_TIM_EnableARRPreload(TIM2);
-
+		  LL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 
 	  }
 

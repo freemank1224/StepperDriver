@@ -25,11 +25,19 @@ extern int32_t filteredAngle;
 extern int32_t fullAngle;
 extern int32_t fullAngle_k_1;
 extern int32_t fullAngle_k_2;
+extern int32_t angularSpeed;
+extern int32_t angularSpeed_k_1;
+extern int32_t angularAcceleration;
+extern int32_t commandSpeed;
+extern int32_t targetSpeed;
+extern int32_t deltaSpeed;
 extern int32_t commandAngle;
+extern int32_t commandAngle_k_1;
 extern int32_t filteredAngle_k_1;
 extern int32_t commandOut;
 extern int32_t commandOut_k_1;
-extern int32_t errorOut;
+extern int32_t errorAngleOut;
+extern int32_t errorSpeedOut;
 extern uint16_t flashAngle;
 extern uint16_t amplitude;
 extern uint16_t counterTIM1_SLOW;
@@ -54,6 +62,7 @@ extern uint32_t speedCmd;
 // PID struct & parameters
 extern PID_TypeDef pidPosition;
 extern PID_TypeDef pidEffort;
+extern PID_TypeDef pidSpeed;
 
 // REAL-TIME Parameters Tuning
 extern uint8_t parameterTuningEnable;
@@ -63,6 +72,7 @@ extern int32_t recKi;
 extern int32_t recKd;
 extern int32_t recFilterCoef;
 extern int32_t recCommandAngle;
+extern int32_t recCommandSpeed;
 extern uint8_t recFilterEnableFlag;
 extern uint8_t recStepSizeIdx;
 extern uint32_t recSpeedSetpoint;
@@ -83,13 +93,18 @@ extern uint32_t setpointARR;
 extern int32_t deltaARR;
 extern int32_t stepARR;
 extern uint32_t outputARR;
+extern uint32_t readARR;
 extern int32_t deltaARRmax;
+extern int32_t deltaARRmin;
 extern int32_t deltaPositiveMax;
 extern int32_t deltaNegativeMax;
 extern uint16_t lowpassFilterCoef;
 extern uint32_t ARRmin;
 extern uint32_t ARRmax;
+extern int32_t speedMax;
+extern int32_t speedMin;
 extern int32_t effort2freqCoef;
+extern int32_t accelerationLimit;
 
 /*********** CONSTANT EXTERN *************/
 

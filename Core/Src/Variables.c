@@ -13,18 +13,26 @@ int16_t dutyCmd;
 int16_t stepNumber;
 int16_t roundNumber;
 
-float CAL_stepSize;
+float CAL_stepSize = 5.12f;
 int16_t dirCmd;	// 1:Clockwise 0:Counterclockwise
 uint16_t testAngle;
 int32_t filteredAngle;
 int32_t fullAngle;
 int32_t fullAngle_k_1;
 int32_t fullAngle_k_2;
+int32_t angularSpeed;
+int32_t angularSpeed_k_1;
+int32_t angularAcceleration;
 int32_t commandAngle = 0;
+int32_t commandAngle_k_1 = 0;
 int32_t filteredAngle_k_1;
+int32_t commandSpeed = 300;
+int32_t targetSpeed = 0;
+int32_t deltaSpeed = 0;
 int32_t commandOut;
 int32_t commandOut_k_1;
-int32_t errorOut;
+int32_t errorAngleOut;
+int32_t errorSpeedOut;
 uint16_t flashAngle;
 uint16_t amplitude;
 uint16_t counterTIM1_SLOW;
@@ -55,10 +63,11 @@ int32_t recKp;
 int32_t recKi;
 int32_t recKd;
 int32_t recCommandAngle;
+int32_t recCommandSpeed;
 int32_t recFilterCoef;
 uint8_t recFilterEnableFlag;
 uint8_t recStepSizeIdx;
-uint32_t recSpeedSetpoint;
+uint32_t recSpeedSetpoint;	// in RPM unit
 
 
 // USART Communication
@@ -67,17 +76,23 @@ uint8_t idx = 0;
 
 
 // For speed regulation
-uint32_t setpointARR = 4000;
-int32_t deltaARR = -25;
+uint32_t setpointARR = 2000;
+int32_t deltaARR = -1;
 int32_t stepARR = 0;
-uint32_t outputARR = 4000;
-int32_t deltaARRmax = -50;
-int32_t deltaPositiveMax = 80;
-int32_t deltaNegativeMax = -80;
-uint16_t lowpassFilterCoef = 500;
+uint32_t outputARR = 2000;
+uint32_t readARR = 0;
+int32_t deltaPositiveMax = 20;
+int32_t deltaNegativeMax = -20;
+uint16_t lowpassFilterCoef = 100;	// 0~1000
+int32_t deltaARRmin = -100;
+int32_t deltaARRmax = 100;
 uint32_t ARRmin;
 uint32_t ARRmax;
+int32_t speedMax;
+int32_t speedMin;
 int32_t effort2freqCoef;
+
+int32_t accelerationLimit;		// given in RPM increment
 
 uint8_t CAL_closedLoop = 1;
 uint8_t CAL_releaseMotor = 0;
@@ -85,7 +100,7 @@ uint8_t CAL_dirCmd = 1;
 uint8_t CAL_calibrateEncoder = 0;
 
 
-PID_TypeDef pidPosition, pidEffort;
+PID_TypeDef pidPosition, pidEffort, pidSpeed;
 
 
 /****************  CONSTANTS  *******************/
@@ -94,7 +109,7 @@ const int16_t ppsConst;
 const uint32_t frequencyMIN = 4000;	// unit: ARR value 4000 for 1kHz
 const uint32_t frequencyMAX = 4000;
 const uint32_t speedSetpoint = 3000;	// RPM
-const uint32_t speedMAX = 6000;			// RPM, NO need to set MIN speed since it can be 0 when stopped!
+const uint32_t speedMAX = 5000;			// RPM, must larger than RPM corresponding to ARRmin, here for 0.98RPM
 
 const int16_t sinLookupTable[] =
 {
