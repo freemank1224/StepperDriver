@@ -205,9 +205,10 @@ void SysTick_Handler(void)
 void TIM1_UP_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM1_UP_IRQn 0 */
+
 	LL_TIM_ClearFlag_UPDATE(TIM1);
 
-	// TIM1 is set to 20kHz
+	// TIM1 is set to 10kHz
 	counterTIM1_5k ++;
 	counterTIM1_1k ++;
 

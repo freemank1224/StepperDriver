@@ -82,6 +82,11 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
   uint16_t cycleNumber = 0;
+  uint32_t tempStepNumber = 0;
+
+  uint16_t arrayARRup[] = {8000,4000,2000,1000,500,250};
+  uint8_t idxARR = 0;
+
 
 
   /* USER CODE END 1 */
@@ -181,6 +186,10 @@ int main(void)
   roundNumber = 0;
   filteredAngle = 0;
   fullAngle = 0;
+
+  testARR = 8000;
+  LL_TIM_SetAutoReload(TIM2, testARR);
+  LL_TIM_EnableARRPreload(TIM2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -190,11 +199,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  // 5k Interrupt to read encoder and calculate speed
-	  if(counterTIM1_5k > 3)
+	  // 1sec Interrupt to read encoder and calculate speed
+	  if(counterTIM1_5k > 9999)
 	  {
 		  counterTIM1_5k = 0;
 
+
+		  testARR = arrayARRup[idxARR];
+		  if(idxARR < 5) idxARR++;
+		  if(idxARR == 5) idxARR = 0;
+
+		  LL_TIM_SetAutoReload(TIM2, testARR);
+		  LL_TIM_EnableARRPreload(TIM2);
 
 	  }
 
@@ -213,9 +229,10 @@ int main(void)
 	  }
 
 	  // 10kHz
-	  if(counterTIM2_5k > 10)
+	  if(counterTIM2_5k > 0)	// 500Hz
 	  {
 		  counterTIM2_5k = 0;
+		  tempStepNumber ++;
 
 		  filteredAngle = encoderFilter(5);
 
@@ -234,48 +251,36 @@ int main(void)
 		  errorOut = commandAngle - fullAngle;
 
 
-		  commandOut = controlPID(&pidEffort, commandAngle, fullAngle);
+//		  commandOut = controlPID(&pidEffort, commandAngle, fullAngle);
 
-//		  commandOut = 0.01 * (commandAngle - fullAngle);
-//		  stepNumber = 0.1 * (commandAngle - fullAngle);
+		  moveMotor(5.12f * tempStepNumber, 40);
+		  LL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 
-
-		  cycleNumber ++;
-
-		  if(cycleNumber > 49999){
-
-			  commandAngle -= 50000;
-
-			  cycleNumber = 0;
-
-//			  stepNumber = 0;
-		  }
-
-		  if(CAL_releaseMotor == 0){
-
-			  if(commandOut >= 0){
-				  stepNumber --;
-//				  if(commandOut < 2) commandOut = 2;
-	//			  if(commandOut > 50) commandOut = 50;
-				  if(parameterTuningEnable != 0){
-					  moveMotor(CAL_stepSize * stepNumber, commandOut);
-				  }else{
-					  moveMotor(2.56f * stepNumber, commandOut);
-				  }
-				  LL_GPIO_SetOutputPin(LED1_GPIO_Port, LED1_Pin);
-			  }
-			  if(commandOut < 0){
-				  stepNumber ++;
-//				  if(commandOut > -2) commandOut = -2;
-	//			  if(commandOut < -50) commandOut = -50;
-				  if(parameterTuningEnable != 0){
-					  moveMotor(CAL_stepSize * stepNumber, -commandOut);
-				  }else{
-					  moveMotor(2.56f * stepNumber, -commandOut);
-				  }
-				  LL_GPIO_ResetOutputPin(LED1_GPIO_Port, LED1_Pin);
-			  }
-		  }
+//		  if(CAL_releaseMotor == 0){
+//
+//			  if(commandOut >= 0){
+//				  stepNumber --;
+////				  if(commandOut < 2) commandOut = 2;
+//	//			  if(commandOut > 50) commandOut = 50;
+//				  if(parameterTuningEnable != 0){
+//					  moveMotor(CAL_stepSize * stepNumber, commandOut);
+//				  }else{
+//					  moveMotor(2.56f * stepNumber, commandOut);
+//				  }
+//				  LL_GPIO_SetOutputPin(LED1_GPIO_Port, LED1_Pin);
+//			  }
+//			  if(commandOut < 0){
+//				  stepNumber ++;
+////				  if(commandOut > -2) commandOut = -2;
+//	//			  if(commandOut < -50) commandOut = -50;
+//				  if(parameterTuningEnable != 0){
+//					  moveMotor(CAL_stepSize * stepNumber, -commandOut);
+//				  }else{
+//					  moveMotor(2.56f * stepNumber, -commandOut);
+//				  }
+//				  LL_GPIO_ResetOutputPin(LED1_GPIO_Port, LED1_Pin);
+//			  }
+//		  }
 
 		  // Unload ALL Control Effect, Let the Motor Free Running
 		  if(CAL_releaseMotor != 0) moveMotor(0, 0);
@@ -287,19 +292,19 @@ int main(void)
 	  }
 
 	  // 2000 for 0.1 sec interrupt
-	  if(counterTIM2_1k > 10000)
+	  if(counterTIM2_1k > 39999)
 	  {
 		  counterTIM2_1k = 0;
 //		  testAngle = readAngle();
 		  printf("======");
 		  printf("Current ARR value is: %d\n", testARR);
-		  if(testARR < 20000) testARR += 200;
-		  if(testARR >= 20000) testARR = 100;
-//		  LL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+
 //		  LL_GPIO_TogglePin(LED_PB0_GPIO_Port, LED_PB0_Pin);
 //		  LL_GPIO_TogglePin(LED_PB1_GPIO_Port, LED_PB1_Pin);
 
 //		  LL_TIM_EnableARRPreload(TIM2);
+//		  LL_TIM_SetAutoReload(TIM2, testARR);
+//		  LL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 
 		  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_12);
 		  while(!LL_GPIO_IsOutputPinSet(GPIOB, LL_GPIO_PIN_12));
@@ -338,20 +343,6 @@ int main(void)
 		  // Pull DOWN to wait for receiving
 		  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_12);
 	  }
-
-
-
-
-//	  LL_TIM_OC_SetCompareCH1(TIM3, dutyCmd);
-//	  LL_TIM_OC_SetCompareCH2(TIM3, dutyCmd);
-
-//	  for(int i=0; i<20; i++){
-//		  moveMotor(81.92f*i, dutyCmd);
-//		  LL_mDelay(50);
-//	  }
-
-
-	// Freeman USART TX test
 
 
   }
