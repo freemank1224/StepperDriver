@@ -38,3 +38,5 @@ uint16_t rpm2ARR(uint32_t fclk, uint32_t prescalerValue, uint32_t stepAngle, int
 
 	return OutARR;
 }
+
+

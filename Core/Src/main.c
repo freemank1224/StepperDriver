@@ -81,9 +81,9 @@ void SystemClock_Config(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  uint32_t tempStepNumber = 0;
+  int32_t tempStepNumber = 0;
 
-  uint16_t arrayARR[] = {8000,4000,2000,1000,500,250};
+  uint16_t arrayARR[] = {8000,4000,2000,1000,500,25};
   uint8_t idxARR = 0;
 
 
@@ -171,10 +171,12 @@ int main(void)
   if(parameterTuningEnable != 0){
 	  initPID(&pidSpeed, recKp, recKi, recKd, recFilterEnableFlag, recFilterCoef, 10, 80);
 	  initPID(&pidEffort, recKp, recKi, recKd, recFilterEnableFlag, recFilterCoef, -50, 50);
+	  initPID(&pidPosition, recKp, recKi, recKd, recFilterEnableFlag, recFilterCoef, -50, 50);
   }else{
 	  // For Manual Tuning in Cube IDE
-	  initPID(&pidSpeed, 1, 10, 0, 0, 0, -100, 100);
+	  initPID(&pidSpeed, 20, 20, 0, 0, 0, -100, 100);
 	  initPID(&pidEffort, 1, 80, 0, 0, 0, -80, 80);
+	  initPID(&pidPosition, 100, 200, 0, 0, 0, -100, 100);
   }
 
 
@@ -188,7 +190,7 @@ int main(void)
   fullAngle = 0;
   fullAngle_k_1 = 0;
 
-  angularSpeedCmdRPM = 1000;	// RPM unit
+  angularSpeedCmdRPM = 2000;	// RPM unit
 
   testARR = 8000;
   LL_TIM_SetAutoReload(TIM2, testARR);
@@ -207,35 +209,40 @@ int main(void)
 	  {
 		  counterTIM1_5k = 0;
 
-		  filteredAngle = encoderFilter(5);
+		  deltaSpeedOutTicks = controlPID(&pidPosition, commandAngle, fullAngle);
+		  if(deltaSpeedOutTicks > CAL_accelerationLmt) deltaSpeedOutTicks = CAL_accelerationLmt;
+		  if(deltaSpeedOutTicks < -CAL_accelerationLmt) deltaSpeedOutTicks = -CAL_accelerationLmt;
+		  speedOutTicks += deltaSpeedOutTicks;
+		  speedOutRPM = ticks2rpm(speedOutTicks);
+		  if(speedOutRPM > angularSpeedCmdRPM) speedOutRPM = angularSpeedCmdRPM;
+		  if(speedOutRPM < -angularSpeedCmdRPM) speedOutRPM = -angularSpeedCmdRPM;
 
-		  if(filteredAngle - filteredAngle_k_1 > 8192)	roundNumber --;
-		  if(filteredAngle - filteredAngle_k_1 < -8192)	roundNumber ++;
 
-		  fullAngle = 16384 * roundNumber + filteredAngle;
 
-		  deltaAngle = fullAngle - fullAngle_k_1;
-		  // Convert to ticks per second
-		  angularSpeedTicks = deltaAngle * (HAL_RCC_GetSysClockFreq() / LL_TIM_GetPrescaler(TIM1) / LL_TIM_GetAutoReload(TIM1) / 20);
-		  // Convert to RPM
-		  angularSpeedRPM = ticks2rpm(angularSpeedTicks);
 
-		  deltaARR = controlPID(&pidSpeed, angularSpeedCmdRPM, angularSpeedRPM);
 
-		  testARR -= deltaARR;
-		  if(deltaARR > 2000) deltaARR = 1000;
-		  if(deltaARR < -2000) deltaARR = -1000;
 
-		  if(testARR < arrayARR[5]) testARR = arrayARR[5];
-		  if(testARR > arrayARR[0]) testARR = arrayARR[0];
 
-		  LL_TIM_SetAutoReload(TIM2, testARR);
-		  LL_TIM_EnableARRPreload(TIM2);
+//		  // Convert to ticks per second
+//		  angularSpeedTicks = deltaAngle * (HAL_RCC_GetSysClockFreq() / LL_TIM_GetPrescaler(TIM1) / LL_TIM_GetAutoReload(TIM1) / 4);
+//		  // Convert to RPM
+//		  angularSpeedRPM = ticks2rpm(angularSpeedTicks);
+//
+//		  deltaARR = controlPID(&pidSpeed, speedOutRPM, angularSpeedRPM);
+//
+//		  testARR -= deltaARR;
+//		  if(deltaARR > 2000) deltaARR = 1000;
+//		  if(deltaARR < -2000) deltaARR = -1000;
+//
+//		  if(testARR < arrayARR[5]) testARR = arrayARR[5];
+//		  if(testARR > arrayARR[0]) testARR = arrayARR[0];
+
+
 
 
 		  // Update history value
-		  fullAngle_k_1 = fullAngle;
-		  angularSpeedRPM_k_1 = angularSpeedRPM;
+
+
 
 	  }
 
@@ -243,6 +250,39 @@ int main(void)
 	  if(counterTIM1_1k > 3)
 	  {
 		  counterTIM1_1k = 0;
+
+		  filteredAngle = encoderFilter(5);
+
+		  if(filteredAngle - filteredAngle_k_1 > 8192)	roundNumber --;
+		  if(filteredAngle - filteredAngle_k_1 < -8192)	roundNumber ++;
+
+		  fullAngle = 16384 * roundNumber + filteredAngle;
+
+
+
+		  deltaAngle = fullAngle - fullAngle_k_1;
+		  // Convert to ticks per second
+		  angularSpeedTicks = deltaAngle * (HAL_RCC_GetSysClockFreq() / LL_TIM_GetPrescaler(TIM1) / LL_TIM_GetAutoReload(TIM1) / 4);
+		  // Convert to RPM
+		  angularSpeedRPM = ticks2rpm(angularSpeedTicks);
+
+		  deltaARR = controlPID(&pidSpeed, speedOutRPM, angularSpeedRPM);
+
+		  if(deltaARR > 2000) deltaARR = 2000;
+		  if(deltaARR < -2000) deltaARR = -2000;
+
+		  testARR -= deltaARR;
+
+		  if(testARR < arrayARR[5]) testARR = arrayARR[5];
+		  if(testARR > arrayARR[0]) testARR = arrayARR[0];
+
+		  LL_TIM_SetAutoReload(TIM2, testARR);
+		  LL_TIM_EnableARRPreload(TIM2);
+//		  LL_TIM_DisableARRPreload(TIM2);
+
+		  filteredAngle_k_1 = filteredAngle;
+		  fullAngle_k_1 = fullAngle;
+		  angularSpeedRPM_k_1 = angularSpeedRPM;
 
 //		  flashAngle = * (volatile uint16_t*)((readAngle()>>2)*2 + 0x08008000);
 
@@ -256,7 +296,7 @@ int main(void)
 			  commandAngle = commandAngle;
 		  }
 
-		  errorOut = commandAngle - fullAngle;
+
 
 		  if(recStepSizeIdx == 0) CAL_stepSize = 81.92f;
 		  if(recStepSizeIdx == 1) CAL_stepSize = 40.96f;
@@ -269,12 +309,35 @@ int main(void)
 	  if(counterTIM2_5k > 0)	// 500Hz
 	  {
 		  counterTIM2_5k = 0;
-		  tempStepNumber ++;
 
-		  commandOut = controlPID(&pidEffort, commandAngle, fullAngle);
+
+//		  commandOut = controlPID(&pidEffort, commandAngle, fullAngle);
+
+		  if(commandAngle - fullAngle > 0)
+		  {
+			  tempStepNumber --;
+			  if(errorOut < 1)
+			  {
+				  speedOutRPM = 0;
+				  moveMotor(5.12f * tempStepNumber, 0);
+//				  tempStepNumber = 0;
+			  }
+
+		  }else{
+			  tempStepNumber ++;
+			  if(errorOut > -1)
+			  {
+				  speedOutRPM = 0;
+				  moveMotor(5.12f * tempStepNumber, 0);
+//				  tempStepNumber = 0;
+			  }
+
+		  }
 
 		  moveMotor(5.12f * tempStepNumber, 40);
 		  LL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+
+
 
 //		  if(CAL_releaseMotor == 0){
 //

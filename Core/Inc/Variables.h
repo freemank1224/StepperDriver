@@ -28,6 +28,9 @@ extern int32_t deltaAngle;
 extern int32_t deltaAngle_k_1;
 extern int32_t commandAngle;
 extern int32_t filteredAngle_k_1;
+extern int32_t deltaSpeedOutTicks;	//pPID
+extern int32_t speedOutTicks;		//pPID
+extern int32_t speedOutRPM;			//pPID
 extern int32_t commandOut;
 extern int32_t errorOut;
 extern uint16_t flashAngle;
@@ -82,7 +85,9 @@ extern float CAL_stepSize;
 /*********** CONSTANT EXTERN *************/
 
 extern const int16_t ppsConst;
+extern const int32_t CAL_accelerationLmt;
 extern const int16_t sinLookupTable[];
+
 
 
 

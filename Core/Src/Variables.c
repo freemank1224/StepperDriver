@@ -23,6 +23,9 @@ int32_t deltaAngle;
 int32_t deltaAngle_k_1;
 int32_t commandAngle = 123456;
 int32_t filteredAngle_k_1;
+int32_t deltaSpeedOutTicks;	//pPID
+int32_t speedOutTicks;		//pPID
+int32_t speedOutRPM;		//pPID
 int32_t commandOut;
 int32_t errorOut;
 uint16_t flashAngle;
@@ -81,6 +84,8 @@ PID_TypeDef pidPosition, pidEffort, pidSpeed;
 /****************  CONSTANTS  *******************/
 
 const int16_t ppsConst;
+const int32_t CAL_accelerationLmt = 20;
+
 
 const int16_t sinLookupTable[] =
 {
