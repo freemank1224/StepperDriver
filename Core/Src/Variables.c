@@ -19,7 +19,9 @@ uint16_t testAngle;
 int32_t filteredAngle;
 int32_t fullAngle;
 int32_t fullAngle_k_1;
-int32_t commandAngle = 0;
+int32_t deltaAngle;
+int32_t deltaAngle_k_1;
+int32_t commandAngle = 123456;
 int32_t filteredAngle_k_1;
 int32_t commandOut;
 int32_t errorOut;
@@ -32,15 +34,17 @@ uint16_t counterTIM2_1k;
 uint16_t counterTIM2_5k;
 uint16_t counterTIM2_speed;
 uint16_t testARR;
+int16_t deltaARR = 0;
 int32_t freeCounter;
 
 // Motor Speed Control Vars
-int16_t CAL_rotationSpeed;
-int16_t rotationSpeed_k;
-int16_t rotationSpeed_k_1;
-int32_t rotationSpeedEncoder;
-int32_t rotationSpeedRPM;
-uint32_t speedCmd;
+int32_t angularSpeedTicks;
+int32_t angularSpeedRPM;
+int32_t angularSpeedTicks_k_1;
+int32_t angularSpeedRPM_k_1;
+int32_t angularSpeedEncoder;
+int32_t angularSpeedRPM;
+int32_t angularSpeedCmdRPM;
 
 // PID parameters
 int32_t controlEffort;
@@ -71,7 +75,7 @@ uint8_t CAL_dirCmd = 1;
 uint8_t CAL_calibrateEncoder = 0;
 
 
-PID_TypeDef pidPosition, pidEffort;
+PID_TypeDef pidPosition, pidEffort, pidSpeed;
 
 
 /****************  CONSTANTS  *******************/

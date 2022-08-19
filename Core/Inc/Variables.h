@@ -24,6 +24,8 @@ extern uint16_t testAngle;
 extern int32_t filteredAngle;
 extern int32_t fullAngle;
 extern int32_t fullAngle_k_1;
+extern int32_t deltaAngle;
+extern int32_t deltaAngle_k_1;
 extern int32_t commandAngle;
 extern int32_t filteredAngle_k_1;
 extern int32_t commandOut;
@@ -37,20 +39,23 @@ extern uint16_t counterTIM2_1k;
 extern uint16_t counterTIM2_5k;
 extern uint16_t counterTIM2_speed;
 extern uint16_t testARR;
+extern int16_t deltaARR;
 extern int32_t freeCounter;
 
 // Motor Speed Control Vars
-extern int16_t CAL_rotationSpeed;
-extern int16_t rotationSpeed_k;
-extern int16_t rotationSpeed_k_1;
-extern int32_t rotationSpeedEncoder;
-extern int32_t rotationSpeedRPM;
-extern uint32_t speedCmd;
+extern int32_t angularSpeedCmdRPM;
+extern int32_t angularSpeedTicks;
+extern int32_t angularSpeedRPM;
+extern int32_t angularSpeedTicks_k_1;
+extern int32_t angularSpeedRPM_k_1;
+extern int32_t angularSpeedEncoder;
+extern int32_t angularSpeedRPM;
 
 
 // PID struct & parameters
 extern PID_TypeDef pidPosition;
 extern PID_TypeDef pidEffort;
+extern PID_TypeDef pidSpeed;
 
 // REAL-TIME Parameters Tuning
 extern uint8_t parameterTuningEnable;

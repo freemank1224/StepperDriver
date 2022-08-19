@@ -208,7 +208,7 @@ void TIM1_UP_IRQHandler(void)
 
 	LL_TIM_ClearFlag_UPDATE(TIM1);
 
-	// TIM1 is set to 10kHz
+	// TIM1 is set to 20kHz
 	counterTIM1_5k ++;
 	counterTIM1_1k ++;
 
@@ -326,4 +326,3 @@ void USART3_IRQHandler(void)
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
-
